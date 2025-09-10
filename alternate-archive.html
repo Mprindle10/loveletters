@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Alternate Archive — Letters Across Time</title>
+  <link rel="stylesheet" href="styles/main.css">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Source+Sans+Pro:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="navbar">
+    <div class="nav-brand">Letters Across Time</div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="archive.html" style="margin-left:1rem;">Archive</a>
+    </nav>
+  </header>
+
+  <main class="container" style="padding-top:100px;">
+    <h1>Alternate Archive — Series</h1>
+    <p>Series of 24 letters. For the final four letters you can switch between two alternate endings.</p>
+
+    <div id="seriesList" class="letter-cards" style="margin-top:2rem;"></div>
+  </main>
+
+  <div id="seriesModal" class="letter-modal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="letter-modal-content">
+      <button id="seriesClose" class="modal-close" aria-label="Close">×</button>
+      <div id="seriesBody"></div>
+    </div>
+  </div>
+
+  <script>
+    async function loadSeries(){
+      try{
+        const res = await fetch('letters/series.json');
+        const data = await res.json();
+        return data.sort((a,b)=> new Date(a.date)-new Date(b.date));
+      }catch(e){console.error(e); return []}
+    }
+
+    function createCard(letter, index){
+      const card = document.createElement('div');
+      card.className = 'letter-card';
+      const hasAlt = letter.alternatives && (letter.alternatives.male || letter.alternatives.female);
+
+      let preview = letter.body.substring(0,140).replace(/\n/g,' ') + (letter.body.length>140 ? '...' : '');
+
+      card.innerHTML = `
+        <div class="letter-header">
+          <h3>${letter.title}</h3>
+          <span class="era-tag">${letter.era} - ${new Date(letter.date).getFullYear()}</span>
+        </div>
+        <div class="letter-preview"><p>${preview}</p></div>
+        <div style="display:flex;gap:0.5rem;align-items:center;">
+          <button class="read-more">Read</button>
+          ${hasAlt ? '<div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center;"><label style="font-size:0.85rem;color:#666">Ending:</label><select class="altSelect"><option value="original">Original</option><option value="male">Male</option><option value="female">Female</option></select></div>' : ''}
+        </div>
+      `;
+
+      // Read button
+      card.querySelector('.read-more').addEventListener('click',()=>{
+        openModal(renderLetter(letter,'original'));
+      });
+
+      // Alternative select
+      if(hasAlt){
+        const sel = card.querySelector('.altSelect');
+        sel.addEventListener('change',()=>{
+          const val = sel.value;
+          openModal(renderLetter(letter,val));
+        });
+      }
+
+      return card;
+    }
+
+    function renderLetter(letter, which){
+      const base = `<h2>${letter.title}</h2><p><em>By ${letter.author} — ${letter.date}</em></p><pre style="white-space:pre-wrap;">${letter.body}</pre>`;
+      if(which === 'original' || !letter.alternatives) return base;
+      const altText = letter.alternatives[which];
+      if(!altText) return base;
+      return `<h2>${letter.title} — Alternate (${which})</h2><p><em>By ${letter.author} — ${letter.date}</em></p><pre style="white-space:pre-wrap;">${letter.body}\n\n--- Alternate Ending ---\n${altText}</pre>`;
+    }
+
+    function openModal(html){
+      document.getElementById('seriesBody').innerHTML = html;
+      const modal = document.getElementById('seriesModal');
+      modal.style.display = 'block';
+      modal.setAttribute('aria-hidden','false');
+    }
+    function closeModal(){
+      const modal = document.getElementById('seriesModal');
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden','true');
+    }
+
+    document.getElementById('seriesClose').addEventListener('click', closeModal);
+    document.getElementById('seriesModal').addEventListener('click',(e)=>{if(e.target===document.getElementById('seriesModal')) closeModal();});
+
+    // Load and render
+    loadSeries().then(series=>{
+      const list = document.getElementById('seriesList');
+      series.forEach((letter,i)=>{
+        const card = createCard(letter,i);
+        // mark locked letters (only show samples on landing; full series requires subscription)
+        if(i !== 0 && i !== 1){
+          card.classList.add('locked');
+          const badge = document.createElement('div');
+          badge.className = 'subscribe-badge';
+          badge.textContent = 'Subscribe to unlock';
+          card.appendChild(badge);
+          // replace read button behavior to prompt subscription
+          const btn = card.querySelector('.read-more');
+          btn.addEventListener('click',()=>{
+            openModal('<h2>Subscribe to read</h2><p>This letter is part of the series. Subscribe to receive two letters per month and unlock the full archive.</p>');
+          });
+        }
+        list.appendChild(card);
+      });
+    });
+  </script>
+</body>
+</html>
